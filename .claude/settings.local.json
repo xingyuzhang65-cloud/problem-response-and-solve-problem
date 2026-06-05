@@ -18,7 +18,16 @@
       "Bash(git remote *)",
       "Bash(git branch *)",
       "Bash(git push *)",
-      "Bash(git -c user.name=fuhao -c user.email=fuhao@users.noreply.github.com commit -m 'refactor: 优化问题反馈系统交互 *)"
+      "Bash(git -c user.name=fuhao -c user.email=fuhao@users.noreply.github.com commit -m 'refactor: 优化问题反馈系统交互 *)",
+      "Bash(gh *)",
+      "Bash(node -e \"const http=require\\('http'\\);const fs=require\\('fs'\\);const path=require\\('path'\\);http.createServer\\(\\(req,res\\)=>{const f=path.join\\(__dirname,req.url==='/'?'ticket-system-demo.html':req.url\\);fs.readFile\\(f,\\(e,d\\)=>{if\\(e\\){res.writeHead\\(404\\);res.end\\('404'\\);return};res.writeHead\\(200,{'Content-Type':f.endsWith\\('.html'\\)?'text/html;charset=utf-8':'text/plain'}\\);res.end\\(d\\)}\\)}\\).listen\\(3000,\\(\\)=>console.log\\('http://localhost:3000'\\)\\)\")",
+      "Bash(curl *)",
+      "PowerShell(Start-Process \"http://localhost:3000\")",
+      "Bash(node *)",
+      "Bash(grep -c \"^}$\" \"D:/问题反馈设计/_check.js\")",
+      "Bash(npx --yes acorn --ecma2020 --source-type=script \"D:/问题反馈设计/_check.js\")",
+      "Bash(npx --yes acorn --ecma2020 --allow-await-outside-function \"D:/问题反馈设计/_check.js\")",
+      "Bash(git -c user.name=\"fuhao\" -c user.email=\"fuhao@users.noreply.github.com\" commit -m \"fix: 修复renderClientDetail函数缺少闭合花括号导致JS解析失败\")"
     ]
   }
 }
