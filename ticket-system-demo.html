@@ -264,12 +264,6 @@ select { cursor: pointer; }
   50% { opacity: .4; }
 }
 
-/* Priority */
-.priority { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-.priority.urgent { background: #FEE2E2; color: #991B1B; }
-.priority.high { background: #FEF3C7; color: #92400E; }
-.priority.medium { background: #DBEAFE; color: #1E40AF; }
-.priority.low { background: var(--gray-100); color: var(--gray-600); }
 
 /* ===== Tables ===== */
 .table-wrap { overflow-x: auto; }
@@ -553,7 +547,7 @@ tr.selected td { background: var(--primary-light); }
   flex-shrink: 0;
 }
 .drawer-header h3 { font-size: 16px; font-weight: 600; }
-.drawer-body { flex: 1; overflow-y: auto; padding: 20px; }
+.drawer-body { flex: 1; overflow-y: auto; overflow-x: visible; padding: 20px; }
 .drawer-footer {
   padding: 14px 20px;
   border-top: 1px solid var(--gray-100);
@@ -570,6 +564,51 @@ tr.selected td { background: var(--primary-light); }
 .fill.green { background: var(--success); }
 .fill.yellow { background: var(--warning); }
 .fill.red { background: var(--danger); }
+
+/* ===== Cascading Dropdown ===== */
+.cascade-wrap { position: relative; z-index: 10; }
+.cascade-trigger {
+  width: 100%; padding: 8px 32px 8px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  font-size: 13px; font-family: inherit;
+  color: var(--gray-800); background: #fff;
+  cursor: pointer; text-align: left;
+  transition: all var(--transition);
+  position: relative; min-height: 37px;
+}
+.cascade-trigger:hover { border-color: var(--primary); }
+.cascade-trigger:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.1); }
+.cascade-trigger::after {
+  content: '▾'; position: absolute; right: 10px; top: 50%;
+  transform: translateY(-50%); color: var(--gray-400); font-size: 12px; pointer-events: none;
+}
+.cascade-trigger.placeholder { color: var(--gray-400); }
+.cascade-panel {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: #fff; border: 1px solid var(--gray-200);
+  border-radius: 8px; box-shadow: var(--shadow-lg);
+  z-index: 60; grid-template-columns: 1fr 1fr;
+  min-height: 200px; overflow: hidden;
+}
+.cascade-panel.open { display: grid; }
+.cascade-col {
+  overflow-y: auto; max-height: 300px;
+  border-right: 1px solid var(--gray-100);
+}
+.cascade-col:last-child { border-right: none; }
+.cascade-item {
+  padding: 9px 14px; cursor: pointer; font-size: 13px;
+  color: var(--gray-700); transition: all var(--transition);
+  display: flex; align-items: center; justify-content: space-between;
+  white-space: nowrap;
+}
+.cascade-item:hover { background: var(--primary-light); color: var(--primary); }
+.cascade-item.active { background: var(--primary-light); color: var(--primary); font-weight: 500; }
+.cascade-item .arrow { color: var(--gray-400); font-size: 10px; }
+.cascade-item .check { color: var(--primary); font-weight: 700; }
+.cascade-col:last-child .cascade-item .arrow { display: none; }
+.cascade-empty { padding: 40px 20px; text-align: center; color: var(--gray-400); font-size: 12px; }
 
 /* ===== Print hide ===== */
 @media print {
@@ -643,29 +682,13 @@ tr.selected td { background: var(--primary-light); }
     <div class="drawer-body">
       <div class="form-group">
         <label class="form-label">问题分类 <span class="required">*</span></label>
-        <div style="display:flex;gap:10px;">
-          <select id="drawerCat1" style="flex:1;" onchange="updateDrawerCat2()">
-            <option value="">请选择一级分类</option>
-            <option value="系统BUG">系统BUG</option>
-            <option value="功能建议">功能建议</option>
-            <option value="账号权限">账号权限</option>
-            <option value="财务费用">财务费用</option>
-          </select>
-          <select id="drawerCat2" style="flex:1;">
-            <option value="">请先选择一级分类</option>
-          </select>
+        <div class="cascade-wrap" id="cascadeWrap">
+          <button class="cascade-trigger placeholder" id="cascadeTrigger" onclick="toggleCascade()" type="button">请选择您遇到的问题</button>
+          <div class="cascade-panel" id="cascadePanel" onclick="event.stopPropagation()">
+            <div class="cascade-col" id="cascadeCol1"></div>
+            <div class="cascade-col" id="cascadeCol2"><div class="cascade-empty">← 请先选择左侧分类</div></div>
+          </div>
         </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">相关业务模块</label>
-        <select id="drawerModule">
-          <option value="">请选择业务模块（选填）</option>
-          <option value="运单模块">运单模块</option>
-          <option value="客户管理">客户管理</option>
-          <option value="账单系统">账单系统</option>
-          <option value="账号管理">账号管理</option>
-          <option value="报表中心">报表中心</option>
-        </select>
       </div>
       <div class="form-group">
         <label class="form-label">问题描述 <span class="required">*</span></label>
@@ -683,9 +706,9 @@ tr.selected td { background: var(--primary-light); }
         <div class="file-list" id="drawerFileList"></div>
       </div>
       <div class="form-group">
-        <label class="form-label">联系方式 <span class="required">*</span></label>
-        <input type="text" id="drawerContact" value="138****5678" placeholder="请输入您的手机号或邮箱">
-        <div class="form-hint">默认使用账户绑定手机号，可临时修改</div>
+        <label class="form-label">联系方式</label>
+        <input type="text" id="drawerContact" value="" placeholder="请输入您的手机号或邮箱（选填）">
+        <div class="form-hint">留空将使用账户绑定手机号，填写后用于紧急沟通</div>
       </div>
     </div>
     <div class="drawer-footer flex-between">
@@ -708,83 +731,83 @@ const APP = {
 
 // ===== MOCK DATA =====
 const MOCK_TICKETS = [
-  { id: 'TK-20240601-001', cat1: '系统BUG', cat2: '页面报错', module: '运单模块', desc: '在运单列表页筛选日期范围后点击查询，页面报错"TypeError: Cannot read property \'length\' of undefined"，无法正常加载运单数据。预期应正常显示筛选后的运单列表。', contact: '138****5678', priority: 'high', status: 'in-progress', author: '李明', company: '顺丰速运有限公司', vip: 'VIP', historyCount: 12, createdAt: '2024-06-01 10:23', updatedAt: '2024-06-05 14:30', timeline: [
-    { time: '2024-06-01 10:23', title: '提交工单', desc: '用户李明提交了系统BUG反馈', type: 'submit' },
-    { time: '2024-06-01 10:45', title: '客服已接单', desc: '客服王芳接单并开始排查', type: 'assign' },
-    { time: '2024-06-01 11:30', title: '转交研发', desc: '确认为前端数据处理BUG，转交前端开发组', type: 'transfer' },
-    { time: '2024-06-03 09:15', title: '研发介入排查', desc: '开发工程师张伟已定位到问题：日期筛选后未正确处理空数组', type: 'dev' },
-    { time: '2024-06-05 14:30', title: '修复中', desc: '正在进行代码修复和单元测试验证', type: 'fixing' },
+  { id: 'TK-20240601-001', cat: '货物运输 / 运单异常', desc: '运单 SF20240528001 跟踪信息已超过48小时未更新，目的港代理也没有收到到港通知。客户正在催件，请尽快确认货物当前位置及预计到达时间。', contact: '138****5678', status: 'in-progress', author: '李明', company: '顺丰速运有限公司', vip: 'VIP', historyCount: 12, createdAt: '2024-06-01 10:23', updatedAt: '2024-06-05 14:30', timeline: [
+    { time: '2024-06-01 10:23', title: '提交工单', desc: '用户李明提交了货物运输问题反馈', type: 'submit' },
+    { time: '2024-06-01 10:45', title: '客服已接单', desc: '客服王芳接单，联系航线运营核查货物状态', type: 'assign' },
+    { time: '2024-06-01 11:30', title: '航线介入排查', desc: '确认为目的港系统未及时回传清关放行信号，已联系海外代理手动更新', type: 'transfer' },
+    { time: '2024-06-03 09:15', title: '海外代理确认', desc: '目的港代理已核实货物在保税仓，等待清关完成后派送', type: 'dev' },
+    { time: '2024-06-05 14:30', title: '跟踪更新中', desc: '已更新运单状态并通知客户，等待清关完成', type: 'fixing' },
   ], messages: [
-    { from: 'user', author: '李明', text: '我在使用运单查询功能时遇到了这个报错，已经影响正常工作了，请尽快处理。', time: '10:23', files: ['screenshot-error.png'] },
-    { from: 'agent', author: '王芳 (客服)', text: '您好，感谢您的反馈。我已收到您的工单，正在查看您提供的截图信息。请问这个问题是在所有浏览器上都会出现吗？', time: '10:50' },
-    { from: 'user', author: '李明', text: '是的，Chrome和Edge都试过了，都是同样的错误。', time: '11:05' },
-    { from: 'agent', author: '王芳 (客服)', text: '好的，我已经将这个问题转交给我们的前端开发团队进行排查。他们会进一步分析根因。如有进展我会第一时间通知您。', time: '11:32' },
-    { from: 'agent', author: '张伟 (研发)', text: '李工您好，我们已定位到问题所在：日期筛选组件在清空日期后返回了null值，列表组件未对该情况进行防御性处理。我们正在修复中，预计明天发布修复版本。', time: '14:35' },
+    { from: 'user', author: '李明', text: '这批货客户很着急，原定上周就该到的。现在跟踪信息一直不更新，我们也没法给客户交代。请尽快帮忙查一下货在哪里。', time: '10:23', files: ['运单截图.png'] },
+    { from: 'agent', author: '王芳 (客服)', text: '您好李先生，非常抱歉给您带来不便。我已收到您的反馈，正在联系航线运营团队核查该票货物的实时状态，有消息第一时间同步您。', time: '10:50' },
+    { from: 'user', author: '李明', text: '好的，麻烦尽快。这批货是VIP客户的加急单，如果再有延误可能要面临赔款。', time: '11:05' },
+    { from: 'agent', author: '王芳 (客服)', text: '理解您的紧急情况。我们已确认货物已到达目的港，目前在等待清关放行。我已联系海外代理优先处理该票，预计清关完成后1-2个工作日派送。', time: '11:32' },
+    { from: 'agent', author: '张伟 (航线运营)', text: '李工，已跟海外代理确认，该票因目的港海关系统升级导致清关放行信号未及时回传。实际货物安全在仓，预计后天完成清关。给您添麻烦了，我们后续会优化数据回传机制。', time: '14:35' },
   ], internalNotes: [
-    { author: '王芳', time: '10:50', text: '初步判断为前端数据处理问题，非后端接口异常。' },
-    { author: '张伟', time: '11:35', text: '确认是DatePicker组件clear时未做空值保护，已在develop分支修复。需要走hotfix流程。' },
-    { author: '刘经理', time: '14:00', text: '同意走hotfix，优先级P0，今晚发版。影响客户：顺丰是VIP客户，需要重点关注。' },
+    { author: '王芳', time: '10:50', text: '初判为海外段信息回传延迟，非丢件。客户为VIP，需优先处理。' },
+    { author: '张伟', time: '11:35', text: '确认是目的港海关系统升级导致，已联系当地代理手动推送状态。建议排查同批次其他运单。' },
+    { author: '刘经理', time: '14:00', text: '顺丰是VIP客户，已安排海外代理优先清关。技术侧需跟进优化数据同步机制，避免同类问题。' },
   ]},
-  { id: 'TK-20240602-002', cat1: '功能建议', cat2: '新增功能', module: '账单系统', desc: '希望在账单导出功能中增加"按部门分sheet导出"的选项，目前只能导出单一汇总表，财务对账时需要手动拆分，效率很低。', contact: '139****1234', priority: 'medium', status: 'resolved', author: '张红', company: '京东物流集团', vip: 'VIP', historyCount: 5, createdAt: '2024-06-02 14:15', updatedAt: '2024-06-04 16:00', timeline: [
-    { time: '2024-06-02 14:15', title: '提交工单', desc: '用户张红提交了功能建议', type: 'submit' },
-    { time: '2024-06-02 15:00', title: '客服已接单', desc: '客服王芳接单并评估需求', type: 'assign' },
-    { time: '2024-06-03 10:00', title: '转交产品', desc: '转交产品经理评估需求合理性', type: 'transfer' },
-    { time: '2024-06-04 16:00', title: '已处理', desc: '产品经理确认采纳，排期至V3.2版本', type: 'resolve' },
+  { id: 'TK-20240602-002', cat: '费用账单 / 费用异议', desc: '5月份账单中有一笔关税代垫费用与海关实际税单金额不符，我们核实后多收了约3500元。具体涉及5月15-17日的三票运单，请提供费用明细供核对。', contact: '139****1234', status: 'resolved', author: '张红', company: '京东物流集团', vip: 'VIP', historyCount: 5, createdAt: '2024-06-02 14:15', updatedAt: '2024-06-04 16:00', timeline: [
+    { time: '2024-06-02 14:15', title: '提交工单', desc: '用户张红提交了费用账单疑问', type: 'submit' },
+    { time: '2024-06-02 15:00', title: '客服已接单', desc: '客服王芳接单，转交财务团队核查', type: 'assign' },
+    { time: '2024-06-03 10:00', title: '财务核实中', desc: '财务调取海关税单与系统计费明细逐笔核对', type: 'transfer' },
+    { time: '2024-06-04 16:00', title: '已处理', desc: '确认为系统重复计算关税附加费，已退款并修复计费规则', type: 'resolve' },
   ], messages: [
-    { from: 'user', author: '张红', text: '我们财务部门每个月需要按部门拆分账单，目前只能手动操作，非常耗时。', time: '14:15' },
-    { from: 'agent', author: '王芳 (客服)', text: '您好，感谢您的建议。我已将您的需求转交给产品团队评估。', time: '15:05' },
-    { from: 'agent', author: '产品经理-陈', text: '张工您好，您提的按部门分sheet导出的需求我们已经评估通过，计划排入V3.2版本迭代。预计下个月中旬上线。感谢您的宝贵建议！', time: '16:05' },
+    { from: 'user', author: '张红', text: '我们财务核对了5月账单，发现三票运单的关税代垫费用比海关实际收取多了3500元，麻烦核实并退回多收部分。', time: '14:15' },
+    { from: 'agent', author: '王芳 (客服)', text: '您好，感谢您提供的信息。我已将您的账单疑问转交给财务团队，他们会逐笔调取海关税单进行核对，预计1-2个工作日给您答复。', time: '15:05' },
+    { from: 'agent', author: '财务专员-陈', text: '张工您好，经核实确实存在重复计算关税附加费的问题，我们已将多收的3500元原路退回，并修复了计费规则。为表歉意，下月账单将减免服务费200元。感谢您的反馈帮助我们发现问题！', time: '16:05' },
   ], internalNotes: [
-    { author: '王芳', time: '15:00', text: '该需求合理，账单模块确实缺少分组导出能力。' },
-    { author: '产品经理-陈', time: '10:15', text: '评估通过。该功能对多部门的企业客户是刚需，纳入V3.2迭代，优先级P1。' },
+    { author: '王芳', time: '15:00', text: '京东是VIP客户，财务需优先处理。' },
+    { author: '财务专员-陈', time: '10:15', text: '确认是计费系统的关税附加费重复计算BUG，已退款并提交修复。需排查是否影响其他客户。' },
   ]},
-  { id: 'TK-20240603-003', cat1: '账号权限', cat2: '权限异常', module: '客户管理', desc: '我的账号突然无法查看"客户详情"页面，提示"无权限访问"。昨天还是正常的，今天早上登录就出现了这个问题。', contact: '137****9012', priority: 'urgent', status: 'pending', author: '王刚', company: '德邦物流股份有限公司', vip: 'VVIP', historyCount: 23, createdAt: '2024-06-03 08:30', updatedAt: '2024-06-03 08:30', timeline: [
-    { time: '2024-06-03 08:30', title: '提交工单', desc: '用户王刚提交了权限异常工单', type: 'submit' },
+  { id: 'TK-20240603-003', cat: '账户服务 / 权限变更', desc: '我的账号从今早开始无法查看客户详情页面，提示"无权限访问"。昨天使用还是正常的，怀疑是近期系统更新导致权限被重置。这影响了我今天的客户拜访计划，请尽快恢复。', contact: '137****9012', status: 'pending', author: '王刚', company: '德邦物流股份有限公司', vip: 'VVIP', historyCount: 23, createdAt: '2024-06-03 08:30', updatedAt: '2024-06-03 08:30', timeline: [
+    { time: '2024-06-03 08:30', title: '提交工单', desc: '用户王刚提交了账户权限异常工单', type: 'submit' },
   ], messages: [
-    { from: 'user', author: '王刚', text: '紧急！我无法查看客户详情了，这影响到我今天的客户拜访计划。请尽快处理！', time: '08:30' },
+    { from: 'user', author: '王刚', text: '紧急！我今天需要拜访客户，但无法查看客户详情页面，提示无权限。昨天还好好的，请马上处理！', time: '08:30' },
   ], internalNotes: [
     { author: '系统', time: '08:30', text: '⚠️ 自动告警：VVIP客户工单，SLA要求30分钟内首次响应。' },
   ]},
-  { id: 'TK-20240604-004', cat1: '财务费用', cat2: '账单疑问', module: '账单系统', desc: '本月账单金额与我们的对账结果有差异，差了约3500元。请提供明细核对。具体怀疑是5月15-17日的几笔订单计费有误。', contact: '136****4567', priority: 'medium', status: 'in-progress', author: '赵晓明', company: '圆通速递有限公司', vip: '普通', historyCount: 3, createdAt: '2024-06-04 09:00', updatedAt: '2024-06-04 11:20', timeline: [
-    { time: '2024-06-04 09:00', title: '提交工单', desc: '用户赵晓明提交了账单疑问', type: 'submit' },
-    { time: '2024-06-04 09:30', title: '客服已接单', desc: '客服李磊接单，联系财务核对', type: 'assign' },
-    { time: '2024-06-04 11:20', title: '财务核实中', desc: '财务团队正在逐笔核对账单明细', type: 'investigating' },
+  { id: 'TK-20240604-004', cat: '清关问题 / 查验滞留', desc: '运单 YD20240515003 在目的港海关被查验，但平台未提供任何查验通知和补充资料入口。目前已经滞留3天，产生了额外仓储费。请问需要补充哪些单证？如何提交？', contact: '136****4567', status: 'in-progress', author: '赵晓明', company: '圆通速递有限公司', vip: '普通', historyCount: 3, createdAt: '2024-06-04 09:00', updatedAt: '2024-06-04 11:20', timeline: [
+    { time: '2024-06-04 09:00', title: '提交工单', desc: '用户赵晓明提交了清关问题工单', type: 'submit' },
+    { time: '2024-06-04 09:30', title: '客服已接单', desc: '客服李磊接单，联系清关团队协查', type: 'assign' },
+    { time: '2024-06-04 11:20', title: '清关团队介入', desc: '已获取海关查验通知书，正在协助客户准备补充单证', type: 'investigating' },
   ], messages: [
-    { from: 'user', author: '赵晓明', text: '我们这边的系统显示5月总费用应该是28500元，但你们的账单显示32000元。请帮忙核实。', time: '09:00' },
-    { from: 'agent', author: '李磊 (客服)', text: '您好，我已收到您的账单疑问。我正在联系财务团队调取5月份的详细账单数据进行核对，预计1-2个工作日内给您答复。', time: '09:35' },
+    { from: 'user', author: '赵晓明', text: '我们有一票发往德国的货被海关扣了，但平台上没有任何通知，我们也不知道要补什么材料。仓储费每天都在产生，请尽快帮忙解决。', time: '09:00' },
+    { from: 'agent', author: '李磊 (客服)', text: '您好，非常理解您的焦急心情。我马上联系清关团队调取该票的查验通知，确认需要补充的材料清单后第一时间同步您。通常补充单证后2-3个工作日可以放行。', time: '09:35' },
   ], internalNotes: [
-    { author: '李磊', time: '09:35', text: '需要拉取圆通5月全量账单明细，重点排查5月15-17日的订单。' },
-    { author: '财务-周', time: '11:20', text: '正在导出相关数据，初步看确实有3笔订单计费存在重复计算的情况。' },
+    { author: '李磊', time: '09:35', text: '需拉取德国海关查验通知书，确认是否需要原产地证或CE认证文件。' },
+    { author: '清关专员-周', time: '11:20', text: '已获取查验通知，本次查验原因是申报价值与实际不符。需要客户提供原始采购发票和付款凭证。' },
   ]},
-  { id: 'TK-20240605-005', cat1: '系统BUG', cat2: '数据错误', module: '运单模块', desc: '运单状态显示不正确，已完成签收的运单在列表中仍然显示为"运输中"。运单号：YD20240528001', contact: '135****7890', priority: 'low', status: 'closed', author: '孙丽', company: '中通快递股份有限公司', vip: '普通', historyCount: 8, createdAt: '2024-06-01 16:00', updatedAt: '2024-06-03 10:00', timeline: [
-    { time: '2024-06-01 16:00', title: '提交工单', desc: '用户孙丽提交了数据错误工单', type: 'submit' },
-    { time: '2024-06-01 16:30', title: '客服已接单', desc: '客服李磊接单排查', type: 'assign' },
-    { time: '2024-06-02 10:00', title: '已处理', desc: '确认为缓存延迟，已刷新运单状态', type: 'resolve' },
+  { id: 'TK-20240605-005', cat: '货物运输 / 签收异常', desc: '运单 YD20240528001 已于前天由收件人签收，但系统中仍显示"运输中"。终端客户和发件方都在追问，请尽快更新运单状态。', contact: '135****7890', status: 'closed', author: '孙丽', company: '中通快递股份有限公司', vip: '普通', historyCount: 8, createdAt: '2024-06-01 16:00', updatedAt: '2024-06-03 10:00', timeline: [
+    { time: '2024-06-01 16:00', title: '提交工单', desc: '用户孙丽提交了运单状态异常反馈', type: 'submit' },
+    { time: '2024-06-01 16:30', title: '客服已接单', desc: '客服李磊接单，核查运单签收记录', type: 'assign' },
+    { time: '2024-06-02 10:00', title: '已处理', desc: '确认为末端派送扫码数据未回传，已手动同步签收状态', type: 'resolve' },
     { time: '2024-06-03 10:00', title: '已关闭', desc: '用户确认解决，系统自动归档', type: 'close' },
   ], messages: [
-    { from: 'user', author: '孙丽', text: '运单YD20240528001已经签收两天了，但系统里还是显示运输中。', time: '16:00' },
-    { from: 'agent', author: '李磊 (客服)', text: '您好，我们已排查到该问题是由于运单状态缓存更新延迟导致的。我们已经手动刷新了该运单的状态，现在应该可以正常显示了。给您带来不便，敬请谅解。', time: '16:45' },
+    { from: 'user', author: '孙丽', text: '运单YD20240528001已经签收两天了，系统里还显示运输中，客户和发件方都在问，请尽快处理。', time: '16:00' },
+    { from: 'agent', author: '李磊 (客服)', text: '您好，我们已核查该运单的末端派送记录，确认已签收。问题原因是派送员的扫码数据未成功回传系统，我们已手动更新状态，现在应该正常显示了。给您带来不便请谅解。', time: '16:45' },
     { from: 'user', author: '孙丽', text: '好的，现在显示正常了，谢谢！', time: '09:15' },
   ], internalNotes: []},
-  { id: 'TK-20240606-006', cat1: '功能建议', cat2: '体验优化', module: '客户管理', desc: '客户列表的导出功能目前只能导出当前页，希望能支持全量导出。我们有2000+客户，每次只能导出20条非常不便。', contact: '133****2345', priority: 'medium', status: 'pending', author: '周杰', company: '韵达快递有限公司', vip: '普通', historyCount: 2, createdAt: '2024-06-05 09:20', updatedAt: '2024-06-05 09:20', timeline: [
-    { time: '2024-06-05 09:20', title: '提交工单', desc: '用户周杰提交了体验优化建议', type: 'submit' },
+  { id: 'TK-20240606-006', cat: '系统问题 / 功能建议', desc: '客户列表导出功能目前只能导出当前页（20条/页），我们有2000+客户需要全量导出做年度分析。每次手动翻页导出非常低效，希望能支持一键全量导出或分批导出。', contact: '133****2345', status: 'pending', author: '周杰', company: '韵达快递有限公司', vip: '普通', historyCount: 2, createdAt: '2024-06-05 09:20', updatedAt: '2024-06-05 09:20', timeline: [
+    { time: '2024-06-05 09:20', title: '提交工单', desc: '用户周杰提交了功能改进建议', type: 'submit' },
   ], messages: [
-    { from: 'user', author: '周杰', text: '我们经常需要导出全部客户数据做分析，但目前的导出只能导出当前页20条，这完全不够用。', time: '09:20' },
+    { from: 'user', author: '周杰', text: '我们每年底需要做客户分析报告，目前系统只能一页一页导出，2000多个客户要导100多次，完全不可行。能否增加全量导出功能？', time: '09:20' },
   ], internalNotes: []},
-  { id: 'TK-20240607-007', cat1: '账号权限', cat2: '账号开通', module: '账号管理', desc: '新入职的同事需要开通系统账号，姓名：陈小红，部门：运营部，角色：运营专员。需要运单模块和客户管理的查看权限。', contact: '138****3456', priority: 'medium', status: 'in-progress', author: '吴经理', company: '申通快递有限公司', vip: 'VIP', historyCount: 15, createdAt: '2024-06-04 13:00', updatedAt: '2024-06-05 10:00', timeline: [
+  { id: 'TK-20240607-007', cat: '账户服务 / 信息修改', desc: '新入职同事需要开通系统账号。姓名：陈小红，部门：运营部，角色：运营专员。需要开通运单查询、客户管理和账单查看权限。', contact: '138****3456', status: 'in-progress', author: '吴经理', company: '申通快递有限公司', vip: 'VIP', historyCount: 15, createdAt: '2024-06-04 13:00', updatedAt: '2024-06-05 10:00', timeline: [
     { time: '2024-06-04 13:00', title: '提交工单', desc: '吴经理提交了账号开通申请', type: 'submit' },
     { time: '2024-06-04 14:00', title: '客服已接单', desc: '客服王芳接单，转交IT部门', type: 'assign' },
-    { time: '2024-06-05 10:00', title: '处理中', desc: 'IT正在配置账号权限', type: 'processing' },
+    { time: '2024-06-05 10:00', title: '处理中', desc: 'IT正在配置账号及角色权限', type: 'processing' },
   ], messages: [
     { from: 'user', author: '吴经理', text: '麻烦尽快开通，新同事下周就要开始工作了。', time: '13:00' },
     { from: 'agent', author: '王芳 (客服)', text: '好的吴经理，我已将申请转交给IT部门，预计1个工作日内完成账号开通。', time: '14:05' },
   ], internalNotes: [
     { author: 'IT-赵', time: '10:00', text: '正在创建账号，需要确认：是否需要同时开通报表查看权限？' },
   ]},
-  { id: 'TK-20240608-008', cat1: '系统BUG', cat2: '性能问题', module: '运单模块', desc: '运单列表加载速度非常慢，查询一个月的数据需要等待30秒以上才能显示结果。严重影响了日常操作效率。', contact: '139****5678', priority: 'high', status: 'pending', author: '李明', company: '顺丰速运有限公司', vip: 'VIP', historyCount: 12, createdAt: '2024-06-05 11:00', updatedAt: '2024-06-05 11:00', timeline: [
-    { time: '2024-06-05 11:00', title: '提交工单', desc: '用户李明提交了性能问题工单', type: 'submit' },
+  { id: 'TK-20240608-008', cat: '系统问题 / 操作异常', desc: '运单查询页面加载速度非常慢，查询一个月的运单数据需要等待30秒以上，高峰时段甚至超时报错。这严重影响了我们日常的运单管理和客户响应效率，请尽快优化。', contact: '139****5678', status: 'pending', author: '李明', company: '顺丰速运有限公司', vip: 'VIP', historyCount: 12, createdAt: '2024-06-05 11:00', updatedAt: '2024-06-05 11:00', timeline: [
+    { time: '2024-06-05 11:00', title: '提交工单', desc: '用户李明提交了系统性能问题工单', type: 'submit' },
   ], messages: [
-    { from: 'user', author: '李明', text: '最近一周运单列表查询越来越慢，今天查一个月的数据等了快40秒。请尽快优化。', time: '11:00' },
+    { from: 'user', author: '李明', text: '最近一周运单查询越来越慢，今天按月度查询等了快40秒才出结果，有时候直接超时。这已经严重拖慢了我们日常工作效率，请尽快优化。', time: '11:00' },
   ], internalNotes: []},
 ];
 
@@ -909,44 +932,135 @@ function statusClass(s) {
   const map = { 'pending': 'pending', 'in-progress': 'in-progress', 'resolved': 'resolved', 'evaluation': 'evaluation', 'closed': 'closed' };
   return map[s] || '';
 }
-function priorityClass(p) {
-  const map = { 'urgent': 'urgent', 'high': 'high', 'medium': 'medium', 'low': 'low' };
-  return map[p] || '';
-}
-function priorityLabel(p) {
-  const map = { 'urgent': '紧急', 'high': '高', 'medium': '中', 'low': '低' };
-  return map[p] || p;
-}
+// ===== CASCADING CATEGORY DROPDOWN =====
+const CAT_DATA = {
+  '货物运输': ['运单异常', '时效延误', '破损丢失', '签收异常'],
+  '清关问题': ['单证资料', '关税税费', '查验滞留'],
+  '费用账单': ['费用异议', '发票开具', '退款处理'],
+  '账户服务': ['登录异常', '权限变更', '信息修改'],
+  '系统问题': ['页面报错', '操作异常', '功能建议'],
+};
+const CAT_SUB_LABELS = {
+  '运单异常': '运单跟踪信息异常', '时效延误': '运输时效延误',
+  '破损丢失': '货物破损或丢失', '签收异常': '签收状态异常',
+  '单证资料': '单证资料不全', '关税税费': '关税税费争议', '查验滞留': '海关查验滞留',
+  '费用异议': '费用计算有误', '发票开具': '发票开具问题', '退款处理': '退款未到账',
+  '登录异常': '账号登录异常', '权限变更': '权限变更申请', '信息修改': '企业/个人信息修改',
+  '页面报错': '页面报错或白屏', '操作异常': '功能操作异常', '功能建议': '功能改进建议',
+};
+window._selectedCat1 = null;
+window._selectedCat2 = null;
 
-// ===== SUBMIT DRAWER =====
 function openSubmitDrawer() {
   window._drawerFiles = [];
   resetDrawerForm();
   document.getElementById('submitDrawerOverlay').classList.add('open');
-  // Focus on first field
-  setTimeout(() => document.getElementById('drawerCat1').focus(), 300);
 }
 
 function closeSubmitDrawer() {
   document.getElementById('submitDrawerOverlay').classList.remove('open');
+  closeCascade();
   resetDrawerForm();
 }
 
-function updateDrawerCat2() {
-  const cat1 = document.getElementById('drawerCat1').value;
-  const cat2 = document.getElementById('drawerCat2');
-  const opts = {
-    '系统BUG': ['页面报错', '数据错误', '性能问题', '兼容性问题'],
-    '功能建议': ['新增功能', '体验优化', '接口需求'],
-    '账号权限': ['权限异常', '账号开通', '角色配置'],
-    '财务费用': ['账单疑问', '发票申请', '退款处理'],
-  };
-  cat2.innerHTML = '<option value="">请选择二级分类</option>';
-  if (opts[cat1]) {
-    opts[cat1].forEach(o => { const opt = document.createElement('option'); opt.value = o; opt.textContent = o; cat2.appendChild(opt); });
+function toggleCascade() {
+  const panel = document.getElementById('cascadePanel');
+  panel.classList.contains('open') ? closeCascade() : openCascade();
+}
+
+function openCascade() {
+  document.getElementById('cascadePanel').classList.add('open');
+  renderCascadeCol1();
+  renderCascadeCol2();
+}
+
+function closeCascade() {
+  document.getElementById('cascadePanel').classList.remove('open');
+}
+
+function renderCascadeCol1() {
+  const col = document.getElementById('cascadeCol1');
+  const keys = Object.keys(CAT_DATA);
+  let html = '';
+  keys.forEach(k => {
+    const active = window._selectedCat1 === k ? ' active' : '';
+    const check = window._selectedCat1 === k ? ' <span class="check">✓</span>' : '';
+    html += `<div class="cascade-item${active}" data-cat1="${k}" onclick="pickCat1('${k}')">${k}${check}<span class="arrow">›</span></div>`;
+  });
+  // 其他
+  const otherActive = window._selectedCat1 === '其他' ? ' active' : '';
+  const otherCheck = window._selectedCat1 === '其他' ? ' <span class="check">✓</span>' : '';
+  html += `<div class="cascade-item${otherActive}" data-cat1="其他" onclick="pickCat1('其他')">其他${otherCheck}</div>`;
+  col.innerHTML = html;
+}
+
+function renderCascadeCol2() {
+  const col = document.getElementById('cascadeCol2');
+  if (!window._selectedCat1 || window._selectedCat1 === '其他') {
+    col.innerHTML = '<div class="cascade-empty">← 请先选择左侧分类</div>';
+    return;
+  }
+  const subs = CAT_DATA[window._selectedCat1] || [];
+  if (subs.length === 0) {
+    col.innerHTML = '<div class="cascade-empty">无子分类</div>';
+    return;
+  }
+  let html = '';
+  subs.forEach(sub => {
+    const label = CAT_SUB_LABELS[sub] || sub;
+    const active = window._selectedCat2 === sub ? ' active' : '';
+    const check = window._selectedCat2 === sub ? ' <span class="check">✓</span>' : '';
+    html += `<div class="cascade-item${active}" data-cat2="${sub}" onclick="pickCat2('${sub}')">${label}${check}</div>`;
+  });
+  html += `<div class="cascade-item${window._selectedCat2 === '其他' ? ' active' : ''}" data-cat2="其他" onclick="pickCat2('其他')">${window._selectedCat2 === '其他' ? '其他 <span class="check">✓</span>' : '其他'}</div>`;
+  col.innerHTML = html;
+}
+
+function pickCat1(key) {
+  window._selectedCat1 = key;
+  window._selectedCat2 = (key === '其他') ? '其他' : null;
+  renderCascadeCol1();
+  if (key === '其他') {
+    // "其他" selected directly, close panel and update trigger
+    updateCascadeTrigger();
+    closeCascade();
+  } else {
+    renderCascadeCol2();
   }
 }
 
+function pickCat2(key) {
+  window._selectedCat2 = key;
+  renderCascadeCol2();
+  updateCascadeTrigger();
+  closeCascade();
+}
+
+function updateCascadeTrigger() {
+  const trigger = document.getElementById('cascadeTrigger');
+  const cat1 = window._selectedCat1;
+  const cat2 = window._selectedCat2;
+  if (!cat1) {
+    trigger.textContent = '请选择您遇到的问题';
+    trigger.classList.add('placeholder');
+  } else if (cat1 === '其他' || !cat2 || cat2 === '其他') {
+    trigger.textContent = cat1 + (cat2 && cat2 !== '其他' ? ' / ' + CAT_SUB_LABELS[cat2] : '');
+    trigger.classList.remove('placeholder');
+  } else {
+    trigger.textContent = cat1 + ' / ' + (CAT_SUB_LABELS[cat2] || cat2);
+    trigger.classList.remove('placeholder');
+  }
+}
+
+// Close cascade when clicking outside
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('cascadeWrap');
+  if (wrap && !wrap.contains(e.target)) {
+    closeCascade();
+  }
+});
+
+// ===== DRAWER UTILS =====
 function updateDrawerCharCount() {
   const len = document.getElementById('drawerDesc').value.length;
   document.getElementById('drawerCharCount').textContent = len;
@@ -981,31 +1095,34 @@ function renderDrawerFileList() {
 function removeDrawerFile(i) { window._drawerFiles.splice(i, 1); renderDrawerFileList(); }
 
 function resetDrawerForm() {
-  document.getElementById('drawerCat1').value = '';
-  document.getElementById('drawerCat2').innerHTML = '<option value="">请先选择一级分类</option>';
-  document.getElementById('drawerModule').value = '';
+  window._selectedCat1 = null;
+  window._selectedCat2 = null;
+  document.getElementById('cascadeTrigger').textContent = '请选择您遇到的问题';
+  document.getElementById('cascadeTrigger').classList.add('placeholder');
   document.getElementById('drawerDesc').value = '';
-  document.getElementById('drawerContact').value = '138****5678';
+  document.getElementById('drawerContact').value = '';
   window._drawerFiles = [];
   renderDrawerFileList();
   updateDrawerCharCount();
 }
 
 function submitDrawerTicket() {
-  const cat1 = document.getElementById('drawerCat1').value;
-  const cat2 = document.getElementById('drawerCat2').value;
+  const cat1 = window._selectedCat1;
+  const cat2 = window._selectedCat2;
   const desc = document.getElementById('drawerDesc').value.trim();
   const contact = document.getElementById('drawerContact').value.trim();
 
-  if (!cat1 || !cat2) { showToast('请选择问题分类', 'error'); return; }
+  if (!cat1) { showToast('请选择问题分类', 'error'); return; }
+  if (cat1 !== '其他' && !cat2) { showToast('请选择具体问题', 'error'); return; }
   if (!desc) { showToast('请填写问题描述', 'error'); return; }
   if (desc.length < 10) { showToast('问题描述至少需要10个字', 'error'); return; }
-  if (!contact) { showToast('请填写联系方式', 'error'); return; }
 
+  const catLabel = cat1 + (cat2 && cat2 !== '其他' ? ' / ' + (CAT_SUB_LABELS[cat2] || cat2) : '');
+  const cat = cat1 + ' / ' + (cat2 || '其他');
   const newId = 'TK-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + String(MOCK_TICKETS.length + 1).padStart(3,'0');
   MOCK_TICKETS.unshift({
-    id: newId, cat1, cat2, module: document.getElementById('drawerModule').value || '未指定', desc, contact,
-    priority: 'medium', status: 'pending', author: '李明', company: '顺丰速运有限公司', vip: 'VIP',
+    id: newId, cat, desc, contact,
+    status: 'pending', author: '李明', company: '顺丰速运有限公司', vip: 'VIP',
     historyCount: 12, createdAt: new Date().toLocaleString('zh-CN'), updatedAt: new Date().toLocaleString('zh-CN'),
     timeline: [{ time: new Date().toLocaleString('zh-CN'), title: '提交工单', desc: '用户提交了工单', type: 'submit' }],
     messages: [{ from: 'user', author: '李明', text: desc, time: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}) }],
@@ -1014,7 +1131,6 @@ function submitDrawerTicket() {
 
   closeSubmitDrawer();
   showToast('🎉 工单提交成功！工单号：' + newId, 'success');
-  // Refresh the list in-place
   renderClientList(document.getElementById('contentArea'));
 }
 
@@ -1056,10 +1172,9 @@ function renderClientList(container) {
             <thead>
               <tr>
                 <th>工单编号</th>
-                <th>分类</th>
+                <th>问题类别</th>
                 <th>摘要描述</th>
                 <th>状态</th>
-                <th>优先级</th>
                 <th>更新时间</th>
                 <th>操作</th>
               </tr>
@@ -1068,10 +1183,9 @@ function renderClientList(container) {
               ${tickets.map(t => `
                 <tr>
                   <td style="font-weight:600;color:var(--primary);cursor:pointer;" onclick="navigateTo('client-detail','${t.id}')">${t.id}</td>
-                  <td>${t.cat1} / ${t.cat2}</td>
+                  <td><span class="status" style="background:var(--primary-light);color:var(--primary);">${t.cat}</span></td>
                   <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${t.desc}">${t.desc}</td>
                   <td><span class="status ${statusClass(t.status)}"><span class="status-dot"></span>${statusLabel(t.status)}</span></td>
-                  <td><span class="priority ${priorityClass(t.priority)}">${priorityLabel(t.priority)}</span></td>
                   <td class="text-sm text-muted">${t.updatedAt}</td>
                   <td><button class="btn btn-sm btn-outline" onclick="navigateTo('client-detail','${t.id}')">查看</button></td>
                 </tr>
@@ -1110,157 +1224,106 @@ function renderClientDetail(container, ticketId) {
         <button class="btn btn-ghost" onclick="navigateTo('client-list')">← 返回列表</button>
         <h2 style="font-size:18px;">工单 ${t.id}</h2>
         <span class="status ${statusClass(t.status)}"><span class="status-dot"></span>${statusLabel(t.status)}</span>
-        <span class="priority ${priorityClass(t.priority)}">${priorityLabel(t.priority)}</span>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 420px;gap:16px;">
-        <!-- Left: Timeline + Chat -->
-        <div style="display:flex;flex-direction:column;gap:14px;">
-          <!-- Timeline -->
-          <div class="card">
-            <div class="card-header"><h3>📅 状态流转时间轴</h3></div>
-            <div class="card-body">
-              <div class="timeline">
-                ${t.timeline.map((item, i) => {
-                  const isLast = i === t.timeline.length - 1;
-                  const cls = isLast ? 'active' : 'completed';
-                  return `
-                    <div class="timeline-item ${cls}">
-                      <div class="timeline-dot"></div>
-                      <div class="timeline-time">${item.time}</div>
-                      <div class="timeline-title">${item.title}</div>
-                      <div class="timeline-desc">${item.desc}</div>
-                    </div>
-                  `;
-                }).join('')}
-              </div>
+      <div style="max-width:720px;display:flex;flex-direction:column;gap:14px;">
+        <!-- Ticket Info -->
+        <div class="card">
+          <div class="card-header"><h3>📋 工单信息</h3></div>
+          <div class="card-body">
+            <div class="info-panel">
+              <div class="info-row"><span class="info-label">问题分类</span><span class="info-value">${t.cat}</span></div>
+              <div class="info-row"><span class="info-label">提交时间</span><span class="info-value">${t.createdAt}</span></div>
+              <div class="info-row"><span class="info-label">最后更新</span><span class="info-value">${t.updatedAt}</span></div>
+              <div class="info-row"><span class="info-label">联系方式</span><span class="info-value">${t.contact || '未填写'}</span></div>
             </div>
-          </div>
-
-          <!-- Chat -->
-          <div class="card">
-            <div class="card-header"><h3>💬 沟通记录</h3></div>
-            <div class="card-body" style="padding:0;">
-              <div class="chat-area" style="border:none;max-height:none;">
-                <div class="chat-messages" id="chatMsgs" style="max-height:350px;">
-                  ${renderChatMessages(t)}
-                </div>
-                ${t.status !== 'closed' ? `
-                <div class="chat-input-area">
-                  <input type="text" id="chatInput" placeholder="输入补充信息..." onkeydown="if(event.key==='Enter')sendClientMsg('${t.id}')">
-                  <button class="btn btn-primary btn-sm" onclick="sendClientMsg('${t.id}')">发送</button>
-                  <label class="btn btn-outline btn-sm" style="cursor:pointer;" title="上传附件">📎<input type="file" style="display:none;" onchange="showToast('附件已添加（Demo模拟）','info')"></label>
-                </div>
-                ` : ''}
-              </div>
+            <div style="margin-top:12px;padding:12px;background:var(--gray-50);border-radius:6px;">
+              <div style="font-size:12px;color:var(--gray-500);margin-bottom:4px;">问题描述</div>
+              <div style="font-size:13px;">${t.desc}</div>
             </div>
           </div>
         </div>
 
-        <!-- Right: Ticket Info + Actions -->
-        <div style="display:flex;flex-direction:column;gap:14px;">
-          <div class="card">
-            <div class="card-header"><h3>📋 工单信息</h3></div>
-            <div class="card-body">
-              <div class="info-panel">
-                <div class="info-row"><span class="info-label">分类</span><span class="info-value">${t.cat1} / ${t.cat2}</span></div>
-                <div class="info-row"><span class="info-label">业务模块</span><span class="info-value">${t.module}</span></div>
-                <div class="info-row"><span class="info-label">提交时间</span><span class="info-value">${t.createdAt}</span></div>
-                <div class="info-row"><span class="info-label">最后更新</span><span class="info-value">${t.updatedAt}</span></div>
-                <div class="info-row"><span class="info-label">联系方式</span><span class="info-value">${t.contact}</span></div>
-              </div>
-              <div style="margin-top:12px;padding:12px;background:var(--gray-50);border-radius:6px;">
-                <div style="font-size:12px;color:var(--gray-500);margin-bottom:4px;">问题描述</div>
-                <div style="font-size:13px;">${t.desc}</div>
-              </div>
-            </div>
+        <!-- Simple Reply (not chat history) -->
+        ${t.status !== 'closed' ? `
+        <div class="card">
+          <div class="card-header"><h3>📝 补充说明</h3></div>
+          <div class="card-body">
+            <textarea id="clientReplyInput" placeholder="如需补充信息请在此填写..." style="min-height:80px;margin-bottom:10px;"></textarea>
+            <button class="btn btn-primary" onclick="submitClientReply('${t.id}')">提交补充</button>
           </div>
-
-          <!-- Actions -->
-          ${t.status === 'resolved' ? `
-          <div class="card" style="border:1px solid var(--success);">
-            <div class="card-body" style="text-align:center;">
-              <p style="margin-bottom:12px;font-size:13px;color:var(--gray-600);">问题已处理完成，请确认</p>
-              <div class="btn-group" style="justify-content:center;">
-                <button class="btn btn-success" onclick="confirmResolve('${t.id}')">✅ 确认解决</button>
-                <button class="btn btn-danger" onclick="reopenTicket('${t.id}')">🔄 未解决，重开工单</button>
-              </div>
-            </div>
-          </div>
-          ` : t.status === 'evaluation' ? `
-          <div class="card" style="border:1px solid #8B5CF6;">
-            <div class="card-body" style="text-align:center;">
-              <p style="margin-bottom:8px;font-size:13px;color:var(--gray-600);">请对本次服务进行评价</p>
-              <div class="stars" style="justify-content:center;margin-bottom:8px;" id="starRating">
-                ${[1,2,3,4,5].map(i => `<span class="star" onclick="rateTicket(${i})" onmouseover="hoverStars(${i})" onmouseout="resetStars()">★</span>`).join('')}
-              </div>
-              <textarea placeholder="补充评价文字（选填）..." style="margin-bottom:8px;min-height:60px;" id="evalText"></textarea>
-              <button class="btn btn-primary" onclick="submitEvaluation('${t.id}')">提交评价</button>
-            </div>
-          </div>
-          ` : ''}
         </div>
+        ` : ''}
+
+        <!-- Actions -->
+        ${t.status === 'resolved' ? `
+        <div class="card" style="border:1px solid var(--success);">
+          <div class="card-body" style="text-align:center;">
+            <p style="margin-bottom:12px;font-size:13px;color:var(--gray-600);">问题已处理完成，请确认</p>
+            <div class="btn-group" style="justify-content:center;">
+              <button class="btn btn-success" onclick="confirmResolve('${t.id}')">✅ 确认解决</button>
+              <button class="btn btn-danger" onclick="reopenTicket('${t.id}')">🔄 未解决，重开工单</button>
+            </div>
+          </div>
+        </div>
+        ` : t.status === 'evaluation' ? `
+        <div class="card" style="border:1px solid #8B5CF6;">
+          <div class="card-body" style="text-align:center;">
+            <p style="margin-bottom:8px;font-size:13px;color:var(--gray-600);">请对本次服务进行评价</p>
+            <div class="stars" style="justify-content:center;margin-bottom:8px;" id="starRating">
+              ${[1,2,3,4,5].map(i => `<span class="star" onclick="rateTicket(${i})" onmouseover="hoverStars(${i})" onmouseout="resetStars()">★</span>`).join('')}
+            </div>
+            <textarea placeholder="补充评价文字（选填）..." style="margin-bottom:8px;min-height:60px;" id="evalText"></textarea>
+            <button class="btn btn-primary" onclick="submitEvaluation('${t.id}')">提交评价</button>
+          </div>
+        </div>
+        ` : ''}
       </div>
     </div>
   `;
 
-  // Scroll chat to bottom
-  setTimeout(() => {
-    const msgs = document.getElementById('chatMsgs');
-    if (msgs) msgs.scrollTop = msgs.scrollHeight;
-  }, 100);
-}
-
-function renderChatMessages(t) {
-  return t.messages.map(m => {
-    if (m.from === 'user') {
-      return `<div class="chat-msg outgoing"><div class="msg-author">${m.author}</div>${m.text}<div class="msg-time">${m.time}</div></div>`;
-    } else {
-      return `<div class="chat-msg incoming"><div class="msg-author">${m.author}</div>${m.text}<div class="msg-time">${m.time}</div></div>`;
-    }
-  }).join('');
-}
-
-function sendClientMsg(ticketId) {
-  const input = document.getElementById('chatInput');
+// Submit client-side reply
+function submitClientReply(ticketId) {
+  const input = document.getElementById('clientReplyInput');
   if (!input) return;
   const text = input.value.trim();
-  if (!text) return;
+  if (!text) { showToast('请输入补充内容', 'error'); return; }
 
   const t = MOCK_TICKETS.find(tk => tk.id === ticketId);
   if (!t) return;
 
-  const now = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
-  t.messages.push({ from: 'user', author: '李明', text, time: now });
+  const now = new Date().toLocaleString('zh-CN');
+  t.updatedAt = now;
+  t.timeline.push({ time: now, title: '客户补充说明', desc: '客户提交了补充信息', type: 'reply' });
+  t.messages.push({ from: 'user', author: '李明', text, time: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}) });
 
-  const msgs = document.getElementById('chatMsgs');
-  if (msgs) {
-    const div = document.createElement('div');
-    div.className = 'chat-msg outgoing';
-    div.innerHTML = `<div class="msg-author">李明</div>${text}<div class="msg-time">${now}</div>`;
-    msgs.appendChild(div);
-    msgs.scrollTop = msgs.scrollHeight;
-  }
+  showToast('补充说明已提交', 'success');
+  navigateTo('client-detail', ticketId);
+}
 
-  input.value = '';
-  input.focus();
-  showToast('消息已发送', 'success');
+// Submit admin-side reply
+function submitAdminReply(ticketId) {
+  const input = document.getElementById('adminReplyInput');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) { showToast('请输入回复内容', 'error'); return; }
 
-  // Simulate auto-reply after 2s if in progress
-  if (t.status === 'in-progress') {
-    setTimeout(() => {
-      const replyTime = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
-      t.messages.push({ from: 'agent', author: '王芳 (客服)', text: '收到您的补充信息，我们会尽快处理。如有更多问题请随时沟通。', time: replyTime });
-      if (msgs) {
-        const div2 = document.createElement('div');
-        div2.className = 'chat-msg incoming';
-        div2.innerHTML = `<div class="msg-author">王芳 (客服)</div>收到您的补充信息，我们会尽快处理。如有更多问题请随时沟通。<div class="msg-time">${replyTime}</div>`;
-        msgs.appendChild(div2);
-        msgs.scrollTop = msgs.scrollHeight;
-      }
-      showToast('客服已回复', 'info');
-    }, 2000);
-  }
+  const t = MOCK_TICKETS.find(tk => tk.id === ticketId);
+  if (!t) return;
+
+  const now = new Date().toLocaleString('zh-CN');
+  t.updatedAt = now;
+  t.timeline.push({ time: now, title: '客服回复', desc: '客服已回复客户', type: 'reply' });
+  t.messages.push({ from: 'agent', author: '王芳 (客服)', text, time: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}) });
+
+  showToast('回复已发送给客户', 'success');
+  navigateTo('admin-detail', ticketId);
+}
+
+// Use quick template
+function useTemplate(i) {
+  const input = document.getElementById('adminReplyInput');
+  if (input) input.value = QUICK_TEMPLATES[i];
 }
 
 function confirmResolve(ticketId) {
@@ -1376,15 +1439,9 @@ function renderAdminWorkbench(container) {
               <option value="evaluation">待评价</option>
               <option value="closed">已关闭</option>
             </select>
-            <select onchange="searchAdminTickets()" id="adminPriorityFilter">
-              <option value="">全部优先级</option>
-              <option value="urgent">紧急</option>
-              <option value="high">高</option>
-              <option value="medium">中</option>
-              <option value="low">低</option>
-            </select>
             <button class="btn btn-outline" onclick="batchTransfer()">📤 批量转单</button>
             <button class="btn btn-outline" onclick="batchChangeStatus()">🔄 批量改状态</button>
+            <button class="btn btn-outline" onclick="exportWorkbench()">📥 导出报表</button>
           </div>
         </div>
         <div class="table-wrap">
@@ -1394,9 +1451,8 @@ function renderAdminWorkbench(container) {
                 <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
                 <th>工单编号</th>
                 <th>客户企业</th>
-                <th>分类</th>
+                <th>问题类别</th>
                 <th>状态</th>
-                <th>优先级</th>
                 <th>提交时间</th>
                 <th>操作</th>
               </tr>
@@ -1406,10 +1462,9 @@ function renderAdminWorkbench(container) {
                 <tr>
                   <td><input type="checkbox" class="ticket-check" value="${t.id}"></td>
                   <td style="font-weight:600;color:var(--primary);cursor:pointer;" onclick="navigateTo('admin-detail','${t.id}')">${t.id}</td>
-                  <td>${t.company} <span class="vip-badge ${t.vip==='VVIP'?'vvip':t.vip==='VIP'?'vip':'normal'}">${t.vip}</span></td>
-                  <td>${t.cat1} / ${t.cat2}</td>
+                  <td>${t.company}</td>
+                  <td><span class="status" style="background:var(--primary-light);color:var(--primary);">${t.cat}</span></td>
                   <td><span class="status ${statusClass(t.status)}"><span class="status-dot"></span>${statusLabel(t.status)}</span></td>
-                  <td><span class="priority ${priorityClass(t.priority)}">${priorityLabel(t.priority)}</span></td>
                   <td class="text-sm text-muted">${t.createdAt}</td>
                   <td>
                     <div class="btn-group">
@@ -1442,16 +1497,13 @@ function switchAdminView(view) {
 function searchAdminTickets() {
   const query = document.getElementById('adminSearch')?.value?.toLowerCase() || '';
   const statusFilter = document.getElementById('adminStatusFilter')?.value || '';
-  const priorityFilter = document.getElementById('adminPriorityFilter')?.value || '';
   const rows = document.querySelectorAll('#adminTicketTableBody tr');
   rows.forEach(row => {
     const text = row.textContent.toLowerCase();
     const statusCell = row.querySelector('.status');
-    const priorityCell = row.querySelector('.priority');
     const matchSearch = !query || text.includes(query);
     const matchStatus = !statusFilter || (statusCell && statusCell.textContent.includes(statusLabel(statusFilter)));
-    const matchPriority = !priorityFilter || (priorityCell && priorityCell.textContent.includes(priorityLabel(priorityFilter)));
-    row.style.display = matchSearch && matchStatus && matchPriority ? '' : 'none';
+    row.style.display = matchSearch && matchStatus ? '' : 'none';
   });
 }
 
@@ -1483,6 +1535,49 @@ function batchChangeStatus() {
   `);
 }
 
+function exportWorkbench() {
+  const viewMode = window._adminView || 'my-todos';
+  const views = {
+    'my-todos': MOCK_TICKETS.filter(t => t.status === 'pending' || t.status === 'in-progress'),
+    'my-handled': MOCK_TICKETS.filter(t => t.status === 'resolved' || t.status === 'closed'),
+    'unassigned': MOCK_TICKETS.filter(t => t.status === 'pending'),
+    'all': MOCK_TICKETS,
+  };
+  const tickets = views[viewMode] || MOCK_TICKETS;
+  if (tickets.length === 0) { showToast('当前视图无工单可导出', 'error'); return; }
+
+  // Build CSV content with BOM for Excel Chinese compatibility
+  const BOM = '﻿';
+  const headers = ['工单编号', '问题分类', '客户企业', '状态', '提交时间', '更新时间', '问题描述'];
+  const rows = [headers.join(',')];
+  tickets.forEach(t => {
+    const row = [
+      t.id,
+      `"${(t.cat || '').replace(/"/g, '""')}"`,
+      `"${(t.company || '').replace(/"/g, '""')}"`,
+      statusLabel(t.status),
+      t.createdAt,
+      t.updatedAt,
+      `"${(t.desc || '').replace(/"/g, '""')}"`,
+    ];
+    rows.push(row.join(','));
+  });
+
+  const csv = BOM + rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `工单报表_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  const viewLabels = { 'my-todos': '我的待办', 'my-handled': '我的经办', 'unassigned': '组内未分配', 'all': '全量工单库' };
+  showToast(`✅ 已导出「${viewLabels[viewMode]}」${tickets.length} 条工单为 CSV 文件`, 'success');
+}
+
 function quickAssign(ticketId) {
   showModal('转交工单', `
     <p style="margin-bottom:12px;">工单 <strong>${ticketId}</strong> 转交给：</p>
@@ -1506,7 +1601,6 @@ function renderAdminDetail(container, ticketId) {
         <button class="btn btn-ghost" onclick="navigateTo('admin-workbench')">← 返回工作台</button>
         <h2 style="font-size:18px;">处理工单 ${t.id}</h2>
         <span class="status ${statusClass(t.status)}"><span class="status-dot"></span>${statusLabel(t.status)}</span>
-        <span class="priority ${priorityClass(t.priority)}">${priorityLabel(t.priority)}</span>
       </div>
 
       <div class="three-col">
@@ -1529,8 +1623,7 @@ function renderAdminDetail(container, ticketId) {
             <div class="card-header"><h3>📋 工单原始信息</h3></div>
             <div class="card-body">
               <div class="info-panel">
-                <div class="info-row"><span class="info-label">分类</span><span class="info-value">${t.cat1} / ${t.cat2}</span></div>
-                <div class="info-row"><span class="info-label">业务模块</span><span class="info-value">${t.module}</span></div>
+                <div class="info-row"><span class="info-label">问题分类</span><span class="info-value">${t.cat}</span></div>
                 <div class="info-row"><span class="info-label">提交时间</span><span class="info-value">${t.createdAt}</span></div>
               </div>
               <div style="margin-top:12px;padding:12px;background:var(--gray-50);border-radius:6px;">
@@ -1542,27 +1635,17 @@ function renderAdminDetail(container, ticketId) {
           </div>
         </div>
 
-        <!-- MIDDLE COLUMN: Timeline + Chat + Quick Reply -->
+        <!-- MIDDLE COLUMN: Reply -->
         <div class="col">
           <div class="card">
-            <div class="card-header"><h3>📅 全时序交互流</h3></div>
+            <div class="card-header"><h3>📝 回复客户</h3></div>
             <div class="card-body">
-              <div class="chat-area" style="border:none;max-height:none;">
-                <div class="chat-messages" id="adminChatMsgs" style="max-height:400px;">
-                  ${renderAdminTimeline(t)}
-                </div>
-                <div class="chat-input-area" style="flex-direction:column;gap:8px;">
-                  <div style="display:flex;flex-wrap:wrap;gap:4px;">
-                    <span style="font-size:11px;color:var(--gray-500);">快捷模板：</span>
-                    ${QUICK_TEMPLATES.map((tmpl, i) => `<span class="template-chip" onclick="useTemplate(${i})">${tmpl.substring(0,15)}...</span>`).join('')}
-                  </div>
-                  <div style="display:flex;gap:8px;">
-                    <input type="text" id="adminChatInput" placeholder="回复客户..." onkeydown="if(event.key==='Enter')sendAdminMsg('${t.id}')">
-                    <button class="btn btn-primary btn-sm" onclick="sendAdminMsg('${t.id}')">发送</button>
-                    <label class="btn btn-outline btn-sm" style="cursor:pointer;">📎<input type="file" style="display:none;"></label>
-                  </div>
-                </div>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">
+                <span style="font-size:11px;color:var(--gray-500);">快捷模板：</span>
+                ${QUICK_TEMPLATES.map((tmpl, i) => `<span class="template-chip" onclick="useTemplate(${i})">${tmpl.substring(0,15)}...</span>`).join('')}
               </div>
+              <textarea id="adminReplyInput" placeholder="回复客户..." style="min-height:120px;margin-bottom:8px;"></textarea>
+              <button class="btn btn-primary" onclick="submitAdminReply('${t.id}')">发送回复</button>
             </div>
           </div>
         </div>
@@ -1624,63 +1707,6 @@ function renderAdminDetail(container, ticketId) {
     </div>
   `;
 
-  setTimeout(() => {
-    const msgs = document.getElementById('adminChatMsgs');
-    if (msgs) msgs.scrollTop = msgs.scrollHeight;
-  }, 100);
-}
-
-function renderAdminTimeline(t) {
-  const allItems = [];
-  t.timeline.forEach(item => {
-    allItems.push({ type: 'system', time: item.time, title: item.title, desc: item.desc });
-  });
-  t.messages.forEach(m => {
-    allItems.push({ type: m.from === 'user' ? 'user' : 'agent', time: m.time, author: m.author, text: m.text });
-  });
-  // Sort by time
-  allItems.sort((a, b) => a.time.localeCompare(b.time));
-
-  return allItems.map(item => {
-    if (item.type === 'system') {
-      return `<div class="chat-system-msg">🔔 ${item.time} — ${item.title}：${item.desc}</div>`;
-    } else if (item.type === 'user') {
-      return `<div class="chat-msg outgoing"><div class="msg-author">${item.author}</div>${item.text}<div class="msg-time">${item.time}</div></div>`;
-    } else {
-      return `<div class="chat-msg incoming"><div class="msg-author">${item.author}</div>${item.text}<div class="msg-time">${item.time}</div></div>`;
-    }
-  }).join('');
-}
-
-function useTemplate(i) {
-  const input = document.getElementById('adminChatInput');
-  if (input) input.value = QUICK_TEMPLATES[i];
-}
-
-function sendAdminMsg(ticketId) {
-  const input = document.getElementById('adminChatInput');
-  if (!input) return;
-  const text = input.value.trim();
-  if (!text) return;
-
-  const t = MOCK_TICKETS.find(tk => tk.id === ticketId);
-  if (!t) return;
-
-  const now = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
-  t.messages.push({ from: 'agent', author: '王芳 (客服)', text, time: now });
-
-  const msgs = document.getElementById('adminChatMsgs');
-  if (msgs) {
-    const div = document.createElement('div');
-    div.className = 'chat-msg incoming';
-    div.innerHTML = `<div class="msg-author">王芳 (客服)</div>${text}<div class="msg-time">${now}</div>`;
-    msgs.appendChild(div);
-    msgs.scrollTop = msgs.scrollHeight;
-  }
-
-  input.value = '';
-  input.focus();
-  showToast('已发送给客户', 'success');
 }
 
 function changeTicketStatus(ticketId) {
@@ -1818,51 +1844,51 @@ function renderAdminDashboard(container) {
         <div class="card-body">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
             <div>
-              <div style="font-size:13px;font-weight:600;margin-bottom:12px;">按业务模块分布</div>
+              <div style="font-size:13px;font-weight:600;margin-bottom:12px;">按问题类别分布</div>
               <div style="margin-bottom:10px;">
-                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">运单模块</span><span style="font-size:12px;font-weight:600;">35%</span></div>
-                <div class="progress-bar"><div class="fill red" style="width:35%;"></div></div>
+                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">货物运输</span><span style="font-size:12px;font-weight:600;">38%</span></div>
+                <div class="progress-bar"><div class="fill red" style="width:38%;"></div></div>
               </div>
               <div style="margin-bottom:10px;">
-                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">账单系统</span><span style="font-size:12px;font-weight:600;">25%</span></div>
+                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">账户服务</span><span style="font-size:12px;font-weight:600;">25%</span></div>
                 <div class="progress-bar"><div class="fill yellow" style="width:25%;"></div></div>
               </div>
               <div style="margin-bottom:10px;">
-                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">客户管理</span><span style="font-size:12px;font-weight:600;">20%</span></div>
-                <div class="progress-bar"><div class="fill blue" style="width:20%;background:var(--info);"></div></div>
+                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">清关问题</span><span style="font-size:12px;font-weight:600;">13%</span></div>
+                <div class="progress-bar"><div class="fill blue" style="width:13%;background:var(--info);"></div></div>
               </div>
               <div style="margin-bottom:10px;">
-                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">账号管理</span><span style="font-size:12px;font-weight:600;">12%</span></div>
-                <div class="progress-bar"><div class="fill green" style="width:12%;"></div></div>
+                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">费用账单</span><span style="font-size:12px;font-weight:600;">13%</span></div>
+                <div class="progress-bar"><div class="fill green" style="width:13%;"></div></div>
               </div>
               <div>
-                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">报表中心</span><span style="font-size:12px;font-weight:600;">8%</span></div>
-                <div class="progress-bar"><div class="fill" style="width:8%;background:var(--gray-400);"></div></div>
+                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">系统问题</span><span style="font-size:12px;font-weight:600;">13%</span></div>
+                <div class="progress-bar"><div class="fill" style="width:13%;background:var(--gray-400);"></div></div>
               </div>
               <div style="margin-top:12px;padding:10px;background:#FEF2F2;border-radius:6px;font-size:12px;color:var(--danger);">
-                ⚠️ <strong>运单模块</strong>工单占比最高(35%)，建议PM优先排查该模块体验问题。
+                ⚠️ <strong>货物运输</strong>类工单占比最高(38%)，以跟踪信息延迟和时效问题为主，建议重点优化海外段数据回传和末端派送状态同步机制。
               </div>
             </div>
             <div>
-              <div style="font-size:13px;font-weight:600;margin-bottom:12px;">按问题分类分布</div>
+              <div style="font-size:13px;font-weight:600;margin-bottom:12px;">按运输环节分布</div>
               <div style="margin-bottom:10px;">
-                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">系统BUG</span><span style="font-size:12px;font-weight:600;">40%</span></div>
-                <div class="progress-bar"><div class="fill red" style="width:40%;"></div></div>
+                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">海外末端派送</span><span style="font-size:12px;font-weight:600;">35%</span></div>
+                <div class="progress-bar"><div class="fill red" style="width:35%;"></div></div>
               </div>
               <div style="margin-bottom:10px;">
-                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">功能建议</span><span style="font-size:12px;font-weight:600;">30%</span></div>
-                <div class="progress-bar"><div class="fill" style="width:30%;background:var(--info);"></div></div>
+                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">海关清关</span><span style="font-size:12px;font-weight:600;">25%</span></div>
+                <div class="progress-bar"><div class="fill" style="width:25%;background:var(--info);"></div></div>
               </div>
               <div style="margin-bottom:10px;">
-                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">账号权限</span><span style="font-size:12px;font-weight:600;">18%</span></div>
-                <div class="progress-bar"><div class="fill yellow" style="width:18%;"></div></div>
+                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">干线运输</span><span style="font-size:12px;font-weight:600;">20%</span></div>
+                <div class="progress-bar"><div class="fill yellow" style="width:20%;"></div></div>
               </div>
               <div>
-                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">财务费用</span><span style="font-size:12px;font-weight:600;">12%</span></div>
-                <div class="progress-bar"><div class="fill green" style="width:12%;"></div></div>
+                <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">国内揽收</span><span style="font-size:12px;font-weight:600;">15%</span></div>
+                <div class="progress-bar"><div class="fill green" style="width:15%;"></div></div>
               </div>
               <div style="margin-top:12px;padding:10px;background:var(--warning-light);border-radius:6px;font-size:12px;color:var(--warning);">
-                💡 <strong>功能建议</strong>占比30%，说明产品有较多优化空间，建议产品经理系统性梳理。
+                💡 <strong>海外末端派送</strong>环节反馈最集中(35%)，涉及尾程快递数据回传延迟、POD签收状态同步等问题。建议评估与海外快递服务商的数据接口协议，提高回传时效和容错机制。
               </div>
             </div>
           </div>
