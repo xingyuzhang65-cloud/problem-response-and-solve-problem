@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -1136,29 +1136,13 @@ function submitDrawerTicket() {
 
 // ===== VIEW: CLIENT TICKET LIST =====
 function renderClientList(container) {
-  const filterStatus = window._clientFilter || 'pending';
-  const tickets = MOCK_TICKETS.filter(t => {
-    if (filterStatus === 'all') return true;
-    if (filterStatus === 'pending') return t.status === 'pending';
-    if (filterStatus === 'in-progress') return t.status === 'in-progress';
-    return true;
-  });
-
-  const counts = {
-    all: MOCK_TICKETS.length,
-    pending: MOCK_TICKETS.filter(t => t.status === 'pending').length,
-    inProgress: MOCK_TICKETS.filter(t => t.status === 'in-progress').length,
-  };
+  const tickets = MOCK_TICKETS;
 
   container.innerHTML = `
     <div class="fade-in">
       <div class="card">
         <div class="card-header">
-          <div class="tabs" style="margin-bottom:0;border-bottom:0;">
-            <div class="tab ${filterStatus==='pending'?'active':''}" onclick="switchClientFilter('pending')">待处理 <span class="count">${counts.pending}</span></div>
-            <div class="tab ${filterStatus==='in-progress'?'active':''}" onclick="switchClientFilter('in-progress')">处理中 <span class="count">${counts.inProgress}</span></div>
-            <div class="tab ${filterStatus==='all'?'active':''}" onclick="switchClientFilter('all')">全部 <span class="count">${counts.all}</span></div>
-          </div>
+          <h3>我的工单 <span style="font-weight:400;color:var(--gray-400);font-size:13px;">（共 ${tickets.length} 个）</span></h3>
           <div style="display:flex;align-items:center;gap:10px;margin-left:auto;">
             <div class="search-input">
               <span class="search-icon">🔍</span>
@@ -1187,7 +1171,10 @@ function renderClientList(container) {
                   <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${t.desc}">${t.desc}</td>
                   <td><span class="status ${statusClass(t.status)}"><span class="status-dot"></span>${statusLabel(t.status)}</span></td>
                   <td class="text-sm text-muted">${t.updatedAt}</td>
-                  <td><button class="btn btn-sm btn-outline" onclick="navigateTo('client-detail','${t.id}')">查看</button></td>
+                  <td><div class="btn-group">
+                    <button class="btn btn-sm btn-outline" onclick="navigateTo('client-detail','${t.id}')">查看</button>
+                    ${t.status !== 'closed' ? `<button class="btn btn-sm btn-warning" onclick="withdrawTicket('${t.id}')">撤回</button>` : ''}
+                  </div></td>
                 </tr>
               `).join('')}
             </tbody>
@@ -1197,11 +1184,6 @@ function renderClientList(container) {
       </div>
     </div>
   `;
-}
-
-function switchClientFilter(filter) {
-  window._clientFilter = filter;
-  renderClientList(document.getElementById('contentArea'));
 }
 
 function searchClientTickets(query) {
@@ -1243,6 +1225,26 @@ function renderClientDetail(container, ticketId) {
             </div>
           </div>
         </div>
+
+        <!-- Public Communication Records -->
+        ${t.messages.length > 0 ? `
+        <div class="card">
+          <div class="card-header"><h3>💬 处理记录</h3></div>
+          <div class="card-body">
+            ${t.messages.map(m => `
+              <div class="reply-record" style="padding:14px 16px; margin-bottom:12px; background:${m.from === 'user' ? 'var(--primary-light)' : '#fff'}; border:1px solid ${m.from === 'user' ? '#C7D2FE' : 'var(--gray-200)'}; border-radius:var(--radius);">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                  <span style="font-weight:600;font-size:13px;color:${m.from === 'user' ? 'var(--primary)' : 'var(--gray-800)'};">${m.from === 'user' ? '👤 ' + m.author : '🎧 ' + m.author}</span>
+                  <span style="font-size:11px;color:var(--gray-400);">${m.time}</span>
+                  <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${m.from === 'user' ? 'var(--primary-light)' : 'var(--success-light)'};color:${m.from === 'user' ? 'var(--primary)' : 'var(--success)'};margin-left:auto;">${m.from === 'user' ? '客户反馈' : '客服回复'}</span>
+                </div>
+                <div style="font-size:13px;line-height:1.7;color:var(--gray-700);white-space:pre-wrap;">${m.text}</div>
+                ${m.files ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">${m.files.map(f => `<span style="font-size:11px;padding:2px 8px;background:var(--gray-100);border-radius:4px;">📎 ${f}</span>`).join('')}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        ` : ''}
 
         <!-- Simple Reply (not chat history) -->
         ${t.status !== 'closed' ? `
@@ -1317,7 +1319,61 @@ function submitAdminReply(ticketId) {
   t.timeline.push({ time: now, title: '客服回复', desc: '客服已回复客户', type: 'reply' });
   t.messages.push({ from: 'agent', author: '王芳 (客服)', text, time: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}) });
 
-  showToast('回复已发送给客户', 'success');
+  showToast('公开回复已发送给客户', 'success');
+  navigateTo('admin-detail', ticketId);
+}
+
+// Tab switching for admin reply / internal note
+function switchAdminTab(tab) {
+  const tabPublic = document.getElementById('tabPublicReply');
+  const tabInternal = document.getElementById('tabInternalNote');
+  const panelPublic = document.getElementById('adminPublicReplyPanel');
+  const panelInternal = document.getElementById('adminInternalNotePanel');
+
+  if (tab === 'public') {
+    tabPublic.classList.add('active');
+    tabInternal.classList.remove('active');
+    panelPublic.style.display = '';
+    panelInternal.style.display = 'none';
+  } else {
+    tabPublic.classList.remove('active');
+    tabInternal.classList.add('active');
+    panelPublic.style.display = 'none';
+    panelInternal.style.display = '';
+  }
+}
+
+// Insert @ mention into internal note textarea
+function insertAtMention(name) {
+  if (!name) return;
+  const textarea = document.getElementById('adminInternalInput');
+  if (!textarea) return;
+  const mention = '@' + name + ' ';
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const before = textarea.value.substring(0, start);
+  const after = textarea.value.substring(end);
+  textarea.value = before + mention + after;
+  textarea.focus();
+  textarea.setSelectionRange(start + mention.length, start + mention.length);
+  document.getElementById('atMentionSelect').value = '';
+}
+
+// Submit internal note (only visible to staff)
+function submitAdminInternal(ticketId) {
+  const input = document.getElementById('adminInternalInput');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) { showToast('请输入内部备注内容', 'error'); return; }
+
+  const t = MOCK_TICKETS.find(tk => tk.id === ticketId);
+  if (!t) return;
+
+  const now = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+  t.internalNotes.push({ author: '王芳', time: now, text });
+
+  input.value = '';
+  showToast('内部备注已添加（仅内部可见）', 'success');
   navigateTo('admin-detail', ticketId);
 }
 
@@ -1375,6 +1431,38 @@ function reopenTicket(ticketId) {
 
   showToast('工单已重新打开，客服将重新处理', 'info');
   navigateTo('client-detail', ticketId);
+}
+
+function withdrawTicket(ticketId) {
+  showModal('撤回工单确认', `
+    <div style="text-align:center;padding:8px 0;">
+      <p style="margin-bottom:8px;font-size:14px;">确定要撤回此工单吗？</p>
+      <p style="font-size:12px;color:var(--gray-500);">撤回后工单将立即关闭归档，如需帮助请重新提交工单。</p>
+    </div>
+  `, `
+    <button class="btn btn-outline" onclick="closeModal()">取消</button>
+    <button class="btn btn-warning" onclick="confirmWithdrawTicket('${ticketId}')">确认撤回</button>
+  `);
+}
+
+function confirmWithdrawTicket(ticketId) {
+  const t = MOCK_TICKETS.find(tk => tk.id === ticketId);
+  if (!t) return;
+  t.status = 'closed';
+  const now = new Date().toLocaleString('zh-CN');
+  t.updatedAt = now;
+  t.timeline.push({ time: now, title: '客户撤回工单', desc: '客户主动撤回了该工单', type: 'withdraw' });
+  t.messages.push({ from: 'user', author: t.author, text: '我已撤回了该工单。', time: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}) });
+
+  closeModal();
+  showToast('工单已撤回', 'success');
+  setTimeout(() => {
+    if (APP.currentView === 'client-list') {
+      renderClientList(document.getElementById('contentArea'));
+    } else {
+      navigateTo('client-detail', ticketId);
+    }
+  }, 500);
 }
 
 // Star rating on detail page
@@ -1636,17 +1724,42 @@ function renderAdminDetail(container, ticketId) {
           </div>
         </div>
 
-        <!-- MIDDLE COLUMN: Reply -->
+        <!-- MIDDLE COLUMN: Reply / Internal Note -->
         <div class="col">
           <div class="card">
-            <div class="card-header"><h3>📝 回复客户</h3></div>
-            <div class="card-body">
+            <div class="card-header" style="border-bottom:none;padding-bottom:0;">
+              <div class="tabs" style="margin-bottom:0;">
+                <div class="tab active" id="tabPublicReply" onclick="switchAdminTab('public')">📝 回复客户</div>
+                <div class="tab" id="tabInternalNote" onclick="switchAdminTab('internal')">🔒 内部备注</div>
+              </div>
+            </div>
+            <div class="card-body" id="adminPublicReplyPanel">
               <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">
                 <span style="font-size:11px;color:var(--gray-500);">快捷模板：</span>
                 ${QUICK_TEMPLATES.map((tmpl, i) => `<span class="template-chip" onclick="useTemplate(${i})">${tmpl.substring(0,15)}...</span>`).join('')}
               </div>
-              <textarea id="adminReplyInput" placeholder="回复客户..." style="min-height:120px;margin-bottom:8px;"></textarea>
-              <button class="btn btn-primary" onclick="submitAdminReply('${t.id}')">发送回复</button>
+              <textarea id="adminReplyInput" placeholder="回复客户，内容将对客户可见..." style="min-height:120px;margin-bottom:8px;"></textarea>
+              <button class="btn btn-primary" onclick="submitAdminReply('${t.id}')">📤 发送公开回复</button>
+            </div>
+            <div class="card-body" id="adminInternalNotePanel" style="display:none;">
+              <div style="padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+                <span style="font-size:18px;">⚠️</span>
+                <span style="font-size:12px;color:#92400E;font-weight:500;">当前为内部备注模式，内容<strong>对客户不可见</strong></span>
+              </div>
+              <div style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                <span style="font-size:12px;color:var(--gray-500);">@ 提醒：</span>
+                <select id="atMentionSelect" style="width:auto;flex:1;font-size:12px;" onchange="insertAtMention(this.value)">
+                  <option value="">选择提醒对象（可选）</option>
+                  <option value="航线运营-张伟">@航线运营-张伟</option>
+                  <option value="清关专员-周">@清关专员-周</option>
+                  <option value="IT-赵">@IT-赵</option>
+                  <option value="财务专员-陈">@财务专员-陈</option>
+                  <option value="产品经理-陈">@产品经理-陈</option>
+                  <option value="李磊(客服)">@李磊(客服)</option>
+                </select>
+              </div>
+              <textarea id="adminInternalInput" placeholder="添加内部备注，可使用 @ 提醒同事..." style="min-height:120px;margin-bottom:8px;background:#FFFBEB;border-color:#FDE68A;"></textarea>
+              <button class="btn btn-warning" onclick="submitAdminInternal('${t.id}')">🔒 添加内部备注</button>
             </div>
           </div>
         </div>
@@ -1713,16 +1826,35 @@ function renderAdminDetail(container, ticketId) {
 function changeTicketStatus(ticketId) {
   const sel = document.getElementById('statusChange');
   if (!sel || !sel.value) { showToast('请选择目标状态', 'error'); return; }
+
+  const newStatus = sel.value;
+  // Force-close needs confirmation
+  if (newStatus === 'closed') {
+    showModal('⚠️ 强制关闭确认', `
+      <div style="text-align:center;padding:8px 0;">
+        <p style="margin-bottom:8px;font-size:14px;">确定要<strong>强制关闭</strong>此工单吗？</p>
+        <p style="font-size:12px;color:var(--gray-500);">强制关闭将跳过客户确认环节，工单将直接归档。</p>
+      </div>
+    `, `
+      <button class="btn btn-outline" onclick="closeModal()">取消</button>
+      <button class="btn btn-danger" onclick="doChangeStatus('${ticketId}', '${newStatus}')">确认强制关闭</button>
+    `);
+    return;
+  }
+  doChangeStatus(ticketId, newStatus);
+}
+
+function doChangeStatus(ticketId, newStatus) {
   const t = MOCK_TICKETS.find(tk => tk.id === ticketId);
   if (!t) return;
 
-  const newStatus = sel.value;
   t.status = newStatus;
   const now = new Date().toLocaleString('zh-CN');
   t.updatedAt = now;
   t.timeline.push({ time: now, title: `状态变更为：${statusLabel(newStatus)}`, desc: '管理员手动更新了工单状态', type: 'status_change' });
   t.messages.push({ from: 'agent', author: '王芳 (客服)', text: `工单状态已更新为：${statusLabel(newStatus)}`, time: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}) });
 
+  closeModal();
   showToast(`工单状态已更新为：${statusLabel(newStatus)}`, 'success');
   setTimeout(() => navigateTo('admin-detail', ticketId), 500);
 }
@@ -1919,3 +2051,4 @@ console.log('🔄 点击左下角按钮切换 客户端/管理端 视角');
 </script>
 </body>
 </html>
+
